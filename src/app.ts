@@ -11,6 +11,7 @@ chai.expect(Bun.env.IMAP_USER, 'IMAP_PORT').string;
 
 // Interfaces
 interface MailData {
+    attr: _.Dictionary<any>,
     head: _.Dictionary<string | string[]>,
     data: string,
 }
@@ -24,12 +25,20 @@ const IMAP_INTERVAL = _.toInteger(Bun.env.IMAP_INTERVAL || '60');
 // Config setup
 export class ImapForwarder {
     // Imap connection
-    protected imap: Imap; 
+    private imap: Imap; 
+    private reconnectDelay: number = 5000;  // in milliseconds
 
+    // Inside your forwardLoop() function:
     async forwardLoop() {
-        return this.forward().then(() => {
-            return setInterval(async () => this.forwardLoop(), IMAP_INTERVAL * 1000);
-        });
+        while (true) {
+            try {
+                await this.forward();
+                await new Promise(resolve => setTimeout(resolve, IMAP_INTERVAL * 1000));
+            } catch (error) {
+                debug('Error in forwardLoop, attempting to reconnect:', error);
+                await new Promise(resolve => setTimeout(resolve, this.reconnectDelay));
+            }
+        }
     }
 
     async forward() {
@@ -48,9 +57,11 @@ export class ImapForwarder {
             // Open the inbox
             await this.openBox('INBOX');
 
-            // For each message, forward to a remote API server for processing
+            // For each message, forward to a remote API server for processing, and
+            // then mark the message as `SEEN`.
             for (let message of await this.fetch()) {
                 await this.send(message);
+                await this.seen(message);
             }
         } 
         
@@ -94,7 +105,8 @@ export class ImapForwarder {
         return new Promise((resolve, reject) => {
             debug('openBox():', mailbox);
 
-            this.imap.openBox(mailbox, true, (err, box) => {
+            // Open the mailbox in read/write mode, so we can later mark messages as `SEEN`
+            this.imap.openBox(mailbox, false, (err, box) => {
                 if (err) reject(err);
                 else resolve(box);
             });
@@ -103,23 +115,43 @@ export class ImapForwarder {
 
     private fetch(): Promise<any> {
         return new Promise((resolve, reject) => {
+            debug('fetch(): looking for unseen messages');
+
             // Track messages for final processing
             let messages: MailData[] = [];
 
-            // Load messages from the imap server            
-            let fetch = this.imap.seq.fetch('1:*', { bodies: [''], struct: true });
-    
-            // Message handling
-            fetch.on('message', (msg, seqno) => this.read(msg, seqno, messages));
+            // Load messages from the imap server  
+            this.imap.search(['UNSEEN'], (error, results = []) => {
+                debug('fetch(): found', results.length);
 
-            // Promise results
-            fetch.once('error', reject);
-            fetch.once('end', () => resolve(messages));
+                if (error) {
+                    return reject(error);
+                }
+
+                if ((results ?? null) === null || results.length === 0) {
+                    return resolve([]);
+                }
+
+                if (results.length === 0) {
+                    return resolve([]);
+                }
+
+                // Get the messages
+                let fetch = this.imap.seq.fetch(results, { bodies: [''], struct: true });
+
+                // Message handling
+                fetch.on('message', (msg, seqno) => this.read(msg, seqno, messages));
+
+                // Promise results
+                fetch.once('error', reject);
+                fetch.once('end', () => resolve(messages));
+            });
         });
     }
 
     private read(msg: any, seqno: number, messages: MailData[]) {
         var mail: MailData = {
+            attr: {},
             head: {},
             data: '',
         };
@@ -132,6 +164,11 @@ export class ImapForwarder {
             stream.on('data', (chunk) => {
                 mail.data += chunk.toString('utf8');
             });
+        });
+
+        // Handle mail attributes
+        msg.once('attributes', (attr) => {
+            mail.attr = attr;
         });
 
         // Handle end of mail data
@@ -180,5 +217,15 @@ export class ImapForwarder {
         debug('send(): axios result:', result.status, result.data);
     }
 
+    private async seen(mail: MailData): Promise<any> {
+        return new Promise((resolve, reject) => {
+            debug('seen()', mail.attr.uid);
+
+            this.imap.addFlags(mail.attr.uid, ['\\Seen'], (error) => {
+                if (error) reject(error);
+                else resolve(undefined);
+            });
+        });
+    }
 
 }
