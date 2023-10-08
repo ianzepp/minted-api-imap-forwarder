@@ -4,6 +4,7 @@
   "description": "Listens to new messages in IMAP mailboxes and forwards them to the API for processing",
   "main": "index.js",
   "scripts": {
+    "start": "bun ./start.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -11,12 +12,20 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^1.5.1",
+    "bun": "^1.0.4",
+    "chai": "^4.3.10",
+    "debug": "^4.3.4",
     "htmlparser2": "^9.0.0",
+    "lodash": "^4.17.21",
+    "node-imap": "^0.9.6",
     "quoted-printable": "^1.0.1"
   },
   "devDependencies": {
     "@types/htmlparser2": "^3.10.4",
+    "@types/lodash": "^4.14.199",
     "@types/quoted-printable": "^1.0.0",
+    "bun-types": "^1.0.5-canary.20231007T140129",
+    "ts-node": "^10.9.1",
     "typescript": "^5.2.2"
   }
 }
