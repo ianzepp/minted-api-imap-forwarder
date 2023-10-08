@@ -214,7 +214,7 @@ export class ImapForwarder {
             // }
         });
 
-        debug('send(): axios result:', result.status, result.data);
+        debug('send(): axios result:', result.status, _.pick(result.data.data, ['id']));
     }
 
     private async seen(mail: MailData): Promise<any> {
