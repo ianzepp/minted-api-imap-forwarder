@@ -1,0 +1,22 @@
+{
+  "name": "minted-api-imap-forwarder",
+  "version": "1.0.0",
+  "description": "Listens to new messages in IMAP mailboxes and forwards them to the API for processing",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.5.1",
+    "htmlparser2": "^9.0.0",
+    "quoted-printable": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/htmlparser2": "^3.10.4",
+    "@types/quoted-printable": "^1.0.0",
+    "typescript": "^5.2.2"
+  }
+}
